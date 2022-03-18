@@ -9,7 +9,8 @@ import csv
 from sklearn.cluster import estimate_bandwidth
 from surprise import Reader
 from surprise.model_selection import train_test_split
-from utils import map_genre
+from sklearn.metrics.pairwise import cosine_similarity
+# from utils import map_genre
 import json
 from surprise import dump
 from surprise import KNNBasic
@@ -26,6 +27,8 @@ app.add_middleware(
 
 # =======================DATA=========================
 data = pd.read_csv("movie_info.csv")
+movies_genres_df=pd.read_csv('movies_genres.csv')
+ratings_with_one_hot=pd.read_csv('ratings_with_one_hot.csv')
 
 """
 =================== Body =============================
@@ -41,27 +44,34 @@ class Movie(BaseModel):
 
 # == == == == == == == == == API == == == == == == == == == == =
 
-# show four genres
+# show top-10 genres
 @app.get("/api/genre")
 def get_genre():
-    return {'genre': ["Action", "Adventure", "Animation", "Children"]}
+    #content-based population profile
+    ratings=ratings_with_one_hot['ratings']
+    genres_df=ratings_with_one_hot.drop(columns=['userId','movie_id','ratings'])
+    pop_genres_df=genres_df.T.dot(ratings)
+    pop_genres_df=pop_genres_df/sum(pop_genres_df.values)
+    pop_genres_df=pop_genres_df.sort_values(ascending=False)
 
-# show all generes
-'''
-@app.get("/api/genre")
-def get_genre():
-    return {'genre': ["Action", "Adventure", "Animation", "Children", "Comedy", "Crime",
-                      "Documentary", "Drama", "Fantasy", "Film_Noir", "Horror", "Musical", "Mystery",
-                      "Romance", "Sci_Fi", "Thriller", "War", "Western"]}
-'''
+    #top 10 generes
+    a=pd.DataFrame(pop_genres_df[:10])
+    pop_genres_list=a.index.tolist()
 
+    return {'genre':pop_genres_list}
+
+
+# top-12 content-based similar movies
 @app.post("/api/movies")
 def get_movies(genre: list):
-    print(genre)
-    query_str = " or ".join(map(map_genre, genre))
-    results = data.query(query_str)
+    #generate content-based recommendation index list
+    rec_index=initial_content_based_rec(movies_genres_df,genre,num=12)
+
+    #query
+    results=pd.merge(rec_index,data,on='movie_id', how='left')
+    results = results.loc[:, ['movie_id', 'movie_title', 'release_date', 'poster_url']]
     results.loc[:, 'score'] = None
-    results = results.sample(18).loc[:, ['movie_id', 'movie_title', 'release_date', 'poster_url', 'score']]
+
     return json.loads(results.to_json(orient="records"))
 
 
@@ -82,6 +92,12 @@ def get_recommend(movies: List[Movie]):
     return json.loads(results.to_json(orient="records"))
 
 
+@app.post("/api/user_recommend")
+def get_user_recommend(movies: List[Movie]):
+    print("movies")
+    
+    return json.loads(results.to_json(orient="records"))
+
 @app.get("/api/add_recommend/{item_id}")
 async def add_recommend(item_id):
     res = get_similar_items(str(item_id), n=5)
@@ -93,6 +109,35 @@ async def add_recommend(item_id):
     results = rec_movies.loc[:, ['movie_id', 'movie_title', 'release_date', 'poster_url', 'like']]
     return json.loads(results.to_json(orient="records"))
 
+@app.get("/api/add_user_recommend/{item_id}")
+async def add_recommend(item_id):
+    # res = get_similar_items(str(item_id), n=5)
+    # res = [int(i) for i in res]
+    # print(res)
+    # rec_movies = data.loc[data['movie_id'].isin(res)]
+    # print(rec_movies)
+    # rec_movies.loc[:, 'like'] = None
+    # results = rec_movies.loc[:, ['movie_id', 'movie_title', 'release_date', 'poster_url', 'like']]
+    return json.loads(results.to_json(orient="records"))
+
+#for dialog 0 & 1
+def initial_content_based_rec(movies_genres_df,genre,num=10):
+    genres_df=movies_genres_df.drop(columns='movie_id')
+    genres_matrix=genres_df.to_numpy()
+
+   #user profile one-hot
+    genres_list=genres_df.columns.tolist()
+    user_profile=pd.DataFrame([len(genres_list)*[0]],columns=genres_list)
+    user_profile[genre]=1
+
+    #similarity
+    u_v_matrix=user_profile.values
+    similarity=cosine_similarity(u_v_matrix,genres_matrix)
+    recommendation_table_df = movies_genres_df[['movie_id']].copy(deep=True)
+    recommendation_table_df['similarity'] = similarity[0]
+    rec_result= recommendation_table_df.sort_values(by=['similarity'], ascending=False)
+    rec_index=rec_result['movie_id'][:num]
+    return rec_index
 
 def user_add(iid, score):
     user = '944'
