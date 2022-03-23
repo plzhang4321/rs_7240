@@ -35,7 +35,7 @@ def get_similar_items(iid, n=12):
     algo.fit(trainset)
     inner_id = algo.trainset.to_inner_iid(iid)
     print("test inner_id" + str(inner_id))
-    neighbors = algo.get_neighbors(inner_id, k=12)
+    neighbors = algo.get_neighbors(inner_id, k=n)
     neighbors_iid = [algo.trainset.to_raw_iid(x) for x in neighbors]
     print("test_neighbour" + str(neighbors_iid))
     return neighbors_iid
