@@ -14,6 +14,7 @@ from surprise import Reader
 from surprise import dump
 
 from item_based_recommend import initial_content_based_rec, get_similar_items
+from user_based_recommend import user_init_rec, refine_recommend
 
 app = FastAPI()
 app.add_middleware(
@@ -76,7 +77,6 @@ def get_movies(genre: list):
 
 @app.post("/api/recommend")
 def get_recommend(movies: List[Movie]):
-    # print(movies)
     iid = str(sorted(movies, key=lambda i: i.score, reverse=True)[0].movie_id)
     score = int(sorted(movies, key=lambda i: i.score, reverse=True)[0].score)
     res = get_initial_items(iid, score)
@@ -92,9 +92,26 @@ def get_recommend(movies: List[Movie]):
 
 
 @app.post("/api/user_recommend")
-def get_user_recommend(movies: List[Movie]):
-    print("movies")
-
+def get_user_recommend(this,movies: List[Movie]):
+    print("/api/user_recommend----------------------------------------------------")
+    #get rating result of current user, record movie id and their score
+    movie_id = str(sorted(movies, key=lambda i: i.score, reverse=True)[0].movie_id)
+    rating = int(sorted(movies, key=lambda i: i.score, reverse=True)[0].score)
+    #let user initical rating as global parameter
+    this.movie_id = movie_id
+    this.rating = rating
+    #according to user rating, form initial recommend list for user
+    init_res = user_init_rec(movie_id, rating)
+    init_res = [int(i) for i in init_res]
+    #delete rated item in recommend list
+    init_res = init_res[~init_res.isin(movie_id)]
+    #get top 12 item for recommend
+    if len(init_res) > 12:
+        init_res = init_res[:12]
+    this.init_res = init_res
+    rec_movies = data.loc[data['movie_id'].isin(init_res)]
+    rec_movies.loc[:, 'like'] = None
+    results = rec_movies.loc[:, ['movie_id', 'movie_title', 'release_date', 'poster_url', 'like']]
     return json.loads(results.to_json(orient="records"))
 
 
@@ -111,14 +128,22 @@ async def add_recommend(item_id):
 
 
 @app.get("/api/add_user_recommend/{item_id}")
-async def add_recommend(item_id):
-    # res = get_similar_items(str(item_id), n=5)
-    # res = [int(i) for i in res]
-    # print(res)
-    # rec_movies = data.loc[data['movie_id'].isin(res)]
-    # print(rec_movies)
-    # rec_movies.loc[:, 'like'] = None
-    # results = rec_movies.loc[:, ['movie_id', 'movie_title', 'release_date', 'poster_url', 'like']]
+async def add_recommend(this,item_id):
+    print("/api/add_user_recommend----------------------------------------")
+    res_list = refine_recommend('944',str(item_id),this.init_res)
+    #get list of recommend items
+    res_list = [int(i) for i in res_list]
+    movie_id=this.movie_id
+    movie_id.append(int(item_id))
+    #remove user rated items and recommended item in recommend list
+    res_list = res_list[~res_list.isin(movie_id)]
+    res_list = res_list[~res_list.isin(this.init_res)]
+    #get top 5 recommend items
+    res_list = res_list[:5]
+    rec_movies = data.loc[data['movie_id'].isin(res_list)]
+    print(rec_movies)
+    rec_movies.loc[:, 'like'] = None
+    results = rec_movies.loc[:, ['movie_id', 'movie_title', 'release_date', 'poster_url', 'like']]
     return json.loads(results.to_json(orient="records"))
 
 
@@ -157,3 +182,4 @@ def get_initial_items(iid, score, n=12):
         print(sorted_list[i])
         res.append(sorted_list[i][0])
     return res
+
