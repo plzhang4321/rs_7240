@@ -6,6 +6,7 @@ from surprise import Dataset
 from surprise import KNNWithMeans
 from surprise import Reader
 from surprise import dump
+from surprise.model_selection import train_test_split
 
 import csv
 
@@ -39,8 +40,8 @@ def user_init_rec(movie_id, rating, num=24):
     file_path = os.path.expanduser('new_u.data')
     reader = Reader(line_format='user item rating timestamp', sep='\t')
     data = Dataset.load_from_file(file_path, reader=reader)
-    trainset = data.build_full_trainset()
-    algo = KNNWithMeans(k=20,sim_options={'name': 'cosine', 'user_based': True})
+    trainset, testset = train_test_split(data, test_size=.9)
+    algo = KNNWithMeans(k=10,sim_options={'name': 'pearson', 'user_based': True})
     algo.fit(trainset)
     dump.dump('./model', algo=algo, verbose=1)
     #predict user rating for exsit movie
@@ -53,25 +54,23 @@ def user_init_rec(movie_id, rating, num=24):
     #sort rating result for big to small, get top n for recommend
     sorted_list = sorted(all_results.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
     for i in range(num):
-        print(sorted_list[i])
         rec_list.append(sorted_list[i][0])
     return rec_list
 
-def refine_recommend(user_id,movie_id,init_rec_list):
+def refine_recommend(user_id,movie_id,rec_list):
     #add new user feature to dataset
     add_new_data(user_id, movie_id)
     #predict recommend list
     file_path = os.path.expanduser('new_u.data')
     reader = Reader(line_format='user item rating timestamp', sep='\t')
     data = Dataset.load_from_file(file_path, reader=reader)
-    trainset = data.build_full_trainset()
-    algo = KNNWithMeans(k=20, sim_options={'name': 'consine', 'user_based': True})
+    trainset, testset = train_test_split(data, test_size=.9)
+    algo = KNNWithMeans(k=20, sim_options={'name': 'pearson', 'user_based': True})
     algo.fit(trainset)
     inner_id = algo.trainset.to_inner_iid(user_id)
     #ensure recommend list include at least 5 items except user feature
-    n = data[data['user']==user_id].shape
-    n = n[0]
-    neighbors = algo.get_neighbors(inner_id, k=n+5+len(init_rec_list))
+    n = len(rec_list)
+    neighbors = algo.get_neighbors(inner_id, k=n+5+len(rec_list))
     neighbors_movie_id = [algo.trainset.to_raw_iid(x) for x in neighbors]
-    print("test_neighbour" + str(neighbors_movie_id))
+    #print("test_neighbour" + str(neighbors_movie_id))
     return neighbors_movie_id

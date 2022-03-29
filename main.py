@@ -17,6 +17,12 @@ from item_based_recommend import initial_content_based_rec, get_similar_items
 from user_based_recommend import user_init_rec, refine_recommend
 
 app = FastAPI()
+global glo_rec_list
+glo_rec_list = []
+global glo_movie_id
+glo_movie_id = []
+global glo_rating
+glo_rating = []
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -92,23 +98,29 @@ def get_recommend(movies: List[Movie]):
 
 
 @app.post("/api/user_recommend")
-def get_user_recommend(this,movies: List[Movie]):
+def get_user_recommend(movies: List[Movie]):
     print("/api/user_recommend----------------------------------------------------")
     #get rating result of current user, record movie id and their score
-    movie_id = str(sorted(movies, key=lambda i: i.score, reverse=True)[0].movie_id)
-    rating = int(sorted(movies, key=lambda i: i.score, reverse=True)[0].score)
+    movie_id = []
+    rating = []
+    for i in range(len(movies)):
+        movie_id.append(str(movies[i].movie_id))
+        rating.append(int(movies[i].score))
     #let user initical rating as global parameter
-    this.movie_id = movie_id
-    this.rating = rating
+    global_user_first_rating(movie_id=movie_id,score=rating)
     #according to user rating, form initial recommend list for user
     init_res = user_init_rec(movie_id, rating)
     init_res = [int(i) for i in init_res]
     #delete rated item in recommend list
-    init_res = init_res[~init_res.isin(movie_id)]
+    for i in init_res:
+        if i in movie_id:
+            init_res.remove(i)
     #get top 12 item for recommend
     if len(init_res) > 12:
         init_res = init_res[:12]
-    this.init_res = init_res
+    print("init_res:")
+    print(init_res)
+    global_rec_list(rec_list=init_res)
     rec_movies = data.loc[data['movie_id'].isin(init_res)]
     rec_movies.loc[:, 'like'] = None
     results = rec_movies.loc[:, ['movie_id', 'movie_title', 'release_date', 'poster_url', 'like']]
@@ -128,20 +140,23 @@ async def add_recommend(item_id):
 
 
 @app.get("/api/add_user_recommend/{item_id}")
-async def add_recommend(this,item_id):
+async def add_recommend(item_id):
     print("/api/add_user_recommend----------------------------------------")
-    res_list = refine_recommend('944',str(item_id),this.init_res)
+    res_list = refine_recommend('944',str(item_id),glo_rec_list)
     #get list of recommend items
     res_list = [int(i) for i in res_list]
-    movie_id=this.movie_id
-    movie_id.append(int(item_id))
+    glo_movie_id.append(int(item_id))
     #remove user rated items and recommended item in recommend list
-    res_list = res_list[~res_list.isin(movie_id)]
-    res_list = res_list[~res_list.isin(this.init_res)]
+    for i in res_list:
+        if i in glo_movie_id:
+            res_list.remove(i)
+        if i in glo_rec_list:
+            res_list.remove(i)
     #get top 5 recommend items
     res_list = res_list[:5]
+    print("res_list:")
+    print(res_list)
     rec_movies = data.loc[data['movie_id'].isin(res_list)]
-    print(rec_movies)
     rec_movies.loc[:, 'like'] = None
     results = rec_movies.loc[:, ['movie_id', 'movie_title', 'release_date', 'poster_url', 'like']]
     return json.loads(results.to_json(orient="records"))
@@ -183,3 +198,15 @@ def get_initial_items(iid, score, n=12):
         res.append(sorted_list[i][0])
     return res
 
+#store user rated movie and rating list as globle veriable
+def global_user_first_rating(movie_id,score):
+    global glo_movie_id
+    global glo_rating
+    glo_movie_id.extend(movie_id)
+    glo_rating.extend(score)
+
+#store history recommend list
+def global_rec_list(rec_list):
+    global glo_rec_list
+    glo_rec_list.extend(rec_list)
+    glo_rec_list = list(set(glo_rec_list))    
