@@ -234,7 +234,7 @@
             },
             user_liked_btn: function (movie) {
                 let that = this;
-                this.user_liked = []
+                //this.user_liked = []
                 this.user_liked.push(movie);
                 this.user_recommended.splice(this.user_recommended.findIndex(item => item.movie_id === movie.movie_id), 1);
                 axios.get(this.baseurl + '/api/add_user_recommend/' + movie.movie_id).then((res) => {

@@ -142,7 +142,8 @@ async def add_recommend(item_id):
 @app.get("/api/add_user_recommend/{item_id}")
 async def add_recommend(item_id):
     print("/api/add_user_recommend----------------------------------------")
-    res_list = refine_recommend('944',str(item_id),len(glo_rec_list)+5)
+    print("item_id: "+str(item_id))
+    res_list = refine_recommend('944',str(item_id),len(glo_rec_list)+6)
     #get list of recommend items
     res_list = [int(i) for i in res_list]
     glo_movie_id.append(int(item_id))
