@@ -82,7 +82,7 @@
             <h2 v-if="user">Liked with Similar tastes</h2>
 
             <el-row :gutter="20" v-if="user">
-                <el-col :span="4" v-for="o in item_liked" :key="o.movie_id" :offset="0">
+                <el-col :span="4" v-for="o in user_liked" :key="o.movie_id" :offset="0">
                     <el-card :body-style="{ padding: '0px' }"
                              style="margin-top:15px;height:400px;overflow:auto;position:relative">
                         <el-image
@@ -218,7 +218,7 @@
             user_rec: function () {
 
                 axios.post(this.baseurl + "/api/user_recommend", this.movies).then((res) => {
-                    // console.log(res.data)
+                    console.log("/api/user_recommend")
                     this.user_recommended = res.data;
                     if (this.user_recommended.length > 0) {
                         this.dialog1 = false;
@@ -234,11 +234,12 @@
             },
             user_liked_btn: function (movie) {
                 let that = this;
+                //this.user_liked = []
                 this.user_liked.push(movie);
                 this.user_recommended.splice(this.user_recommended.findIndex(item => item.movie_id === movie.movie_id), 1);
                 axios.get(this.baseurl + '/api/add_user_recommend/' + movie.movie_id).then((res) => {
-                    console.log(res.data);
-                    that.user_recommended.push.apply(that.user_recommended, res.data);
+                    console.log('/api/add_user_recommend/');
+                    //that.user_recommended.push.apply(that.user_recommended, res.data);
                     that.user_liked.push.apply(that.user_liked, res.data);
                 })
             },
