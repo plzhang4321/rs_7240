@@ -7,6 +7,7 @@ from surprise import KNNWithMeans
 from surprise import Reader
 from surprise import dump
 from surprise.model_selection import train_test_split
+import random
 
 import csv
 
@@ -40,37 +41,39 @@ def user_init_rec(movie_id, rating, num=24):
     file_path = os.path.expanduser('new_u.data')
     reader = Reader(line_format='user item rating timestamp', sep='\t')
     data = Dataset.load_from_file(file_path, reader=reader)
-    trainset, testset = train_test_split(data, test_size=.9)
-    algo = KNNWithMeans(k=10,sim_options={'name': 'pearson', 'user_based': True})
+    trainset, testset = train_test_split(data, test_size=.9,random_state=0)
+    algo = KNNWithMeans(k=20,sim_options={'name': 'cosine', 'user_based': True})
     algo.fit(trainset)
     dump.dump('./model', algo=algo, verbose=1)
     #predict user rating for exsit movie
     all_results = {}
     for i in range(1682):
-        uid = str(944)
-        iid = str(i)
-        pred = algo.predict(uid, iid).est
-        all_results[iid] = pred
+        pred = algo.predict('944',str(i) ).est
+        all_results[str(i)] = pred+random.uniform(0.0001,0.05)
     #sort rating result for big to small, get top n for recommend
-    sorted_list = sorted(all_results.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
+    sorted_list = sorted(all_results.items(), key=lambda kv: kv[1], reverse=True)
     for i in range(num):
         rec_list.append(sorted_list[i][0])
     return rec_list
 
-def refine_recommend(user_id,movie_id,rec_list):
+def refine_recommend(user_id,movie_id,n):
     #add new user feature to dataset
     add_new_data(user_id, movie_id)
     #predict recommend list
     file_path = os.path.expanduser('new_u.data')
     reader = Reader(line_format='user item rating timestamp', sep='\t')
     data = Dataset.load_from_file(file_path, reader=reader)
-    trainset, testset = train_test_split(data, test_size=.9)
+    trainset, testset = train_test_split(data, test_size=.9,random_state=0)
     algo = KNNWithMeans(k=20, sim_options={'name': 'pearson', 'user_based': True})
     algo.fit(trainset)
-    inner_id = algo.trainset.to_inner_iid(user_id)
     #ensure recommend list include at least 5 items except user feature
-    n = len(rec_list)
-    neighbors = algo.get_neighbors(inner_id, k=n+5+len(rec_list))
-    neighbors_movie_id = [algo.trainset.to_raw_iid(x) for x in neighbors]
-    #print("test_neighbour" + str(neighbors_movie_id))
-    return neighbors_movie_id
+    all_results = {}
+    for i in range(1682):
+        pred = algo.predict('944',str(i) ).est
+        all_results[str(i)] = pred+random.uniform(0.00001,0.005)
+    #sort rating result for big to small, get top n for recommend
+    sorted_list = sorted(all_results.items(), key=lambda kv: kv[1], reverse=True)
+    rec_list = []
+    for i in range(n):
+        rec_list.append(sorted_list[i][0])
+    return rec_list

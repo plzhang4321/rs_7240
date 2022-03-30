@@ -120,7 +120,7 @@ def get_user_recommend(movies: List[Movie]):
         init_res = init_res[:12]
     print("init_res:")
     print(init_res)
-    global_rec_list(rec_list=init_res)
+    global_rec_list(init_res)
     rec_movies = data.loc[data['movie_id'].isin(init_res)]
     rec_movies.loc[:, 'like'] = None
     results = rec_movies.loc[:, ['movie_id', 'movie_title', 'release_date', 'poster_url', 'like']]
@@ -142,20 +142,21 @@ async def add_recommend(item_id):
 @app.get("/api/add_user_recommend/{item_id}")
 async def add_recommend(item_id):
     print("/api/add_user_recommend----------------------------------------")
-    res_list = refine_recommend('944',str(item_id),glo_rec_list)
+    res_list = refine_recommend('944',str(item_id),len(glo_rec_list)+5)
     #get list of recommend items
     res_list = [int(i) for i in res_list]
     glo_movie_id.append(int(item_id))
+    if item_id in res_list:
+        res_list.remove(item_id)
     #remove user rated items and recommended item in recommend list
-    for i in res_list:
-        if i in glo_movie_id:
-            res_list.remove(i)
+    for i in res_list:        
         if i in glo_rec_list:
             res_list.remove(i)
     #get top 5 recommend items
     res_list = res_list[:5]
     print("res_list:")
     print(res_list)
+    global_rec_list(res_list)
     rec_movies = data.loc[data['movie_id'].isin(res_list)]
     rec_movies.loc[:, 'like'] = None
     results = rec_movies.loc[:, ['movie_id', 'movie_title', 'release_date', 'poster_url', 'like']]
@@ -202,6 +203,8 @@ def get_initial_items(iid, score, n=12):
 def global_user_first_rating(movie_id,score):
     global glo_movie_id
     global glo_rating
+    global glo_rec_list
+    glo_rec_list.extend(movie_id)
     glo_movie_id.extend(movie_id)
     glo_rating.extend(score)
 
